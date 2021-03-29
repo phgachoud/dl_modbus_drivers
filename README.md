@@ -1,2 +1,2 @@
 # dl_modbus_drivers
-Modbus drivers for various devices
+Miscancellous modbus drivers in python to retreive informations on devices, and store them into csv files
