@@ -19,4 +19,4 @@ As the epever_3210a_mppt_solar_charge_controller_manual_en.pdf mentions, the cab
 ### RS-485 to USB Dongle
 
 ![USB Dongle 1](img/20210329_180347_rs485-to-usb.jpg)
-![USB Dongle 2](img/)20210329_180401_rs485-to-usb.jpg)
+![USB Dongle 2](img/20210329_180401_rs485-to-usb.jpg)
