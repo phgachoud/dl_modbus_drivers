@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 #       DESCRIPTION: 
-#
+#			Python modbus driver to get and store epever 3210a values into a CSV file
+#				
 #       CALL SAMPLE:
-#	
+#			see this_file.py -h				
 #	
 #		DOCS
 #			see ../../docs directory	
@@ -17,7 +18,6 @@
 #       @creation: 20210326
 #       @last modification:
 #       @version: 1.0
-#       @URL: $URL
 #
 #		LICENCE: MIT
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -35,14 +35,12 @@ try:
 	from pymodbus.client.sync import ModbusSerialClient as ModbusSerialClient #initialize a serial RTU client instance https://github.com/riptideio/pymodbus/blob/master/pymodbus/client/sync.py
 	#from pymodbus.client.sync import ModbusTcpClient as ModbusTcpClient # FOR TCP
 	from pymodbus.transaction import ModbusRtuFramer
-	#sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'pysunspec'))
 	from datetime import datetime, date, time, timedelta
-#	import jsonpickle # pip install jsonpickle
-#	import json
+	from dl_modbus_item import DlModbusItem
 	from dl_logger import DlLogger
+	from dl_bytes_decoder import DlBytesDecoder
 	from collections import OrderedDict
-	#from sit_constants import SitConstants
-	#from sit_date_time import SitDateTime
+	import csv
 except ImportError as l_err:
 	print("ImportError: {0}".format(l_err))
 	raise l_err
@@ -57,8 +55,16 @@ class Epever3210a(object):
 	_logger = None
 	_console_handler = None
 	_file_handler = None
+	_csv_file_dir = '/var/dl/'
+	_slave_address = 1
+	_serial_port = '/dev/ttyUSB0'
+	_baudrate = 115200
+	_dl_bytes_decoder = DlBytesDecoder()
+
 
 	_modbus_client = None
+
+	_modbus_items = []
 
 
 # SETTERS AND GETTERS
@@ -106,31 +112,167 @@ class Epever3210a(object):
 		Add arguments to parser (called by init_arg_parse())
 		"""
 		self._parser.add_argument('-v', '--verbose', help='increase output verbosity', action="store_true")
-		self._parser.add_argument('-u', '--update_leds_status', help='Updates led status according to spec', action="store_true")
+		self._parser.add_argument('-d', '--display_results', help='Display results as logger.info', action="store_true")
+		self._parser.add_argument('-s', '--store_csv', help='stores output to CSV', action="store_true")
 		self._parser.add_argument('-t', '--test', help='Runs test method', action="store_true")
-
-		#self._parser.add_argument('-u', '--base_url', help='NOT_IMPLEMENTED:Gives the base URL for requests actions', nargs='?', default=self.DEFAULT_BASE_URL)
-		l_required_named = self._parser.add_argument_group('required named arguments')
-#		l_required_named.add_argument('-i', '--host_ip', help='Host IP', nargs='?', required=True)
-#		l_required_named.add_argument('-u', '--slave_address', help='Slave address of modbus device', nargs='?', required=True)
-#		l_required_named.add_argument('-m', '--host_mac', help='Host MAC', nargs='?', required=True)
-#		l_required_named.add_argument('-l', '--longitude', help='Longitude coordinate (beware timezone is set to Chile)', nargs='?', required=True)
-#		l_required_named.add_argument('-a', '--lattitude', help='Lattitude coordinate (beware timezone is set to Chile)', nargs='?', required=True)
-#		l_required_named.add_argument('-d', '--device_type', help='Device Type:' + ('|'.join(str(l) for l in self.DEVICE_TYPES_ARRAY)), nargs='?', required=True)
 
 	def execute_corresponding_args( self ):
 		"""
 			Parsing arguments and calling corresponding functions
 		"""
-		if self._args.verbose:
-			self._logger.setLevel(logging.DEBUG)
-		else:
-			self._logger.setLevel(logging.INFO)
-		if self._args.test:
-			self.test()
-		#if self._args.store_values:
+		try:
+			if self._args.verbose:
+				self._logger.setLevel(logging.DEBUG)
+			else:
+				self._logger.setLevel(logging.INFO)
 
-	
+			self._modbus_client = ModbusSerialClient(method="rtu", port=self._serial_port, timeout=3, stopbits=1, bytesize=8, baudrate=self._baudrate)
+			self._modbus_client.connect()
+			if self._args.test:
+				self.test()
+
+			self.read_items()
+			if self._args.display_results:
+				self.display_items()
+
+			if self._args.store_csv:
+				self.store_to_csv()
+		except Exception as l_e:
+			self._logger.error('Error in execute_corresponding_args: {}'.format(l_e))
+			self._modbus_client.close()
+			raise l_e
+
+	def extend_items(self, a_dl_modbus_item):
+		"""
+		Adds given item to self._modbus_items
+		"""
+		self._modbus_items.append(a_dl_modbus_item)
+
+
+	def read_items(self):
+		"""
+			Reads all items
+		"""
+		self.extend_items(DlModbusItem(0x3100, 'PV Array voltage', 'PVV', 1, 'V', 0))
+		self.extend_items(DlModbusItem(0x3101, 'PV array current', 'PVA', 1, 'A', 0))
+		self.extend_items(DlModbusItem(0x3102, 'PV array input power', 'PVP', 2, 'W', 0))
+
+		self.extend_items(DlModbusItem(0x310C, 'Load voltage', 'LV', 1, 'V', 0))
+		self.extend_items(DlModbusItem(0x310D, 'Load current', 'LA', 1, 'A', 0))
+		self.extend_items(DlModbusItem(0x310E, 'Load Power', 'LP', 2, 'W', 0))
+
+		self.extend_items(DlModbusItem(0x3110, 'Battery temperature', 'BTemp', 1, 'C', 0))
+		self.extend_items(DlModbusItem(0x3111, 'Device temperature', 'DTemp', 1, 'C', 0))
+		self.extend_items(DlModbusItem(0x311A, 'Battery remaining capacity', 'BattRemCap', 1, '%', 0))
+		self.extend_items(DlModbusItem(0x311D, 'Battery rated voltage', 'BattRatV', 1, 'V', 0))
+		self.extend_items(DlModbusItem(0x3200, 'Battery status', 'BattSt', 1, 'Enum', 0))
+		self.extend_items(DlModbusItem(0x3201, 'Charging equipment status', 'ChSt', 1, 'Enum', 0))
+		self.extend_items(DlModbusItem(0x3302, 'Max voltage today', 'BattVMaxDay', 1, 'V', 0))
+		self.extend_items(DlModbusItem(0x3303, 'Min voltage today', 'BattVMinDay', 1, 'V', 0))
+
+		self.extend_items(DlModbusItem(0x3304, 'Consumed energy today', 'LoadPDay', 2, 'kWh', 0))
+		self.extend_items(DlModbusItem(0x3306, 'Consumed energy month', 'LoadPMonth', 2, 'kWh', 0))
+		self.extend_items(DlModbusItem(0x3308, 'Consumed energy year', 'LoadPYear', 2, 'kWh', 0))
+		self.extend_items(DlModbusItem(0x330A, 'Total consumed energy', 'LoadPTot', 2, 'kWh', 0))
+
+		self.extend_items(DlModbusItem(0x330C, 'Generated energy today', 'GenPDay', 2, 'kWh', 0))
+		self.extend_items(DlModbusItem(0x330E, 'Generated energy month', 'GenPMonth', 2, 'kWh', 0))
+		self.extend_items(DlModbusItem(0x3310, 'Generated energy year', 'GenPYear', 2, 'kWh', 0))
+		self.extend_items(DlModbusItem(0x3312, 'Total Generated energy', 'GenPTot', 2, 'kWh', 0))
+
+		self.extend_items(DlModbusItem(0x331A, 'Battery voltage', 'BattV', 1, 'V', 0))
+		self.extend_items(DlModbusItem(0x331B, 'Battery current', 'BattA', 2, 'A', 0))
+		
+		self.read_modbus_items()
+
+	def read_modbus_items(self):
+		"""
+		"""
+		for l_item in self._modbus_items:
+			self._logger.debug('--> reading register:{} registers_count:{} slave:{}'.format(l_item._address, l_item._registers_count, self._slave_address))
+			try:
+				l_registers_array = self._modbus_client.read_input_registers(l_item._address, l_item._registers_count, unit=self._slave_address)
+				#self._logger.debug('-- register result:{}'.format(l_registers_array))
+				if l_item._registers_count == 1:
+					l_val = float(l_registers_array.registers[0] / 100.0)
+				elif l_item._registers_count == 2:
+					l_low = float(l_registers_array.registers[0] / 100.0)
+					l_high = float(l_registers_array.registers[1] / 100.0)
+					l_val = l_low + (l_high * 100) # for readability
+					#self._logger.debug('-- registers result:L/H({}/{})={}'.format(l_low, l_high, l_val))
+
+				l_item._item = l_val
+			except Exception as l_e:
+				self._logger.warning('Unable to get a valid answer from register "{}" index:{}/hex({}), registers_count:{}'.format(l_item._description, l_item._address, hex(l_item._address), l_item._registers_count))
+
+
+	def display_items(self):
+		"""
+		Displays information with logger on self._modbus_items
+		"""
+		for l_item in self._modbus_items:
+			self._logger.info(l_item.out())
+
+
+	def get_mac(self):
+		import re, uuid
+		l_res = '-'.join(re.findall('..', '%012x' % uuid.getnode()))
+		
+		self._logger.warning('mac:{}-'.format(l_res))
+		return l_res
+
+	def csv_file_path(self):
+		"""
+		returns a complete file path for csv exporting
+		creates directory if not exists
+		"""
+		l_res = os.path.join(self._csv_file_dir, str(datetime.today().year), '{:02d}'.format(datetime.today().month))
+		if not os.path.exists(l_res):
+			os.makedirs(l_res)
+		l_fname = datetime.today().strftime('%Y%m%d') + '_' + self.get_mac() + '_' + self.__class__.__name__ + '.csv'
+		l_res = os.path.join(l_res, l_fname)
+		return l_res
+
+	def _header_rows(self):
+		l_res = []
+		l_res.append(['#Device', self.__class__.__name__])
+		l_res.append(['#Mac', self.get_mac()])
+		return l_res
+
+	def store_to_csv(self):
+		try:
+			l_f_name = self.csv_file_path()
+			l_file_exists = os.path.isfile(l_f_name)
+			self._logger.info("store_to_csv->Writting into file {} exists:{}".format(l_f_name, l_file_exists))
+			with open(l_f_name, mode='a+') as l_csv_file:
+				l_csv_writter = csv.writer(l_csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+				if not l_file_exists:
+					#Header comments
+					for l_header_row in self._header_rows():
+						self._logger.info("store_values_into_csv->writting header:{}".format(l_header_row))
+						l_csv_writter.writerow(l_header_row)
+						self._logger.info("store_to_csv->Writting METADATA row: %s" % (';'.join(str(l) for l in l_header_row)))
+					#Headers
+					l_fields_abbr_row = []
+					l_fields_abbr_row.append('Timestamp')
+					for l_dl_modbus_item in self._modbus_items:
+						l_fields_abbr_row.append(l_dl_modbus_item._abbreviation)
+					l_csv_writter.writerow(l_fields_abbr_row)
+					self._logger.info("store_to_csv->Writting Headers row: %s" % (';'.join(str(l) for l in l_fields_abbr_row)))
+				# Metadata and registers
+				l_values_dict = []
+				l_values_dict.append(datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'))
+				for l_dl_modbus_item in self._modbus_items:
+					l_values_dict.append(l_dl_modbus_item._item)
+
+				l_csv_writter.writerow(l_values_dict)
+				#Registers no metadata
+				self._logger.info("store_to_csv->Writting row: %s" % ('|'.join(str(l) for l in l_values_dict)))
+				l_csv_writter.writerow(l_values_dict)
+		except Exception as l_e:
+			self._logger.error('store_values_into_csv->Error: %s' % l_e)
+			raise l_e
+
 # TEST
 
 	def test(self):
@@ -139,9 +281,6 @@ class Epever3210a(object):
 		"""
 		try:
 			self._logger.info("################# BEGIN #################")
-			l_serial_port = '/dev/ttyUSB0'
-			self._modbus_client = ModbusSerialClient(method="rtu", port=l_serial_port, timeout=4, stopbits=1, bytesize=8, baudrate=115200)
-			self._modbus_client.connect()
 
 			l_od = OrderedDict()
 
@@ -184,7 +323,6 @@ class Epever3210a(object):
 				l_unit = l_tmp_array[1]
 				self._logger.info('{}: {} {}'.format(l_label, l_val, l_unit))
 
-			self._modbus_client.close()
 			self._logger.info("################# END #################")
 			
 		except Exception as l_e:
