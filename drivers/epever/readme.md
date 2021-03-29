@@ -1,1 +1,1 @@
-See documentation into the docs directory on root of this repo
+See documentation into the docs directory [on root of this repo](../../docs/epever/)
