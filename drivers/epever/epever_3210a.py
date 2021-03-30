@@ -265,7 +265,6 @@ class Epever3210a(object):
 				for l_dl_modbus_item in self._modbus_items:
 					l_values_dict.append(l_dl_modbus_item._item)
 
-				l_csv_writter.writerow(l_values_dict)
 				#Registers no metadata
 				self._logger.info("store_to_csv->Writting row: %s" % ('|'.join(str(l) for l in l_values_dict)))
 				l_csv_writter.writerow(l_values_dict)
