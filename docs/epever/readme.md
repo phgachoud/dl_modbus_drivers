@@ -20,3 +20,9 @@ As the epever_3210a_mppt_solar_charge_controller_manual_en.pdf mentions, the cab
 
 ![USB Dongle 1](img/20210329_180347_rs485-to-usb.jpg)
 ![USB Dongle 2](img/20210329_180401_rs485-to-usb.jpg)
+
+## Usage
++ Note that sometimes security policies don't allow to write on USB without su rights. 
++ `/your_clone_location/dl_modbus_drivers/drivers/epever/epever_3210a.py -s` will store to a csv
++ `/your_clone_location/dl_modbus_drivers/drivers/epever/epever_3210a.py -h` will give you more possibilities
+
