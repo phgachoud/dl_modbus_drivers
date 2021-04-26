@@ -169,6 +169,8 @@ class EastronSdm120Ct(object):
         self.extend_items(DlModbusItem(74, 'Export active energy', 'PExp', 2, 'kWh', 0))
         self.extend_items(DlModbusItem(76, 'Import reactive energy', 'QImp', 2, 'kVArh', 0))
         self.extend_items(DlModbusItem(78, 'Export reactive energy', 'QExp', 2, 'kVArh', 0))
+        self.extend_items(DlModbusItem(342, 'Total Active Energy', 'PTot', 2, 'kWh', 0))
+        self.extend_items(DlModbusItem(344, 'Total Reactive Energy', 'QTot', 2, 'kVArh', 0))
         
         self.read_modbus_items()
 
