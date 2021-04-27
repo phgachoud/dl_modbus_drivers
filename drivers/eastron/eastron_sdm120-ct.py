@@ -183,6 +183,7 @@ class EastronSdm120Ct(object):
                 l_registers_array = self._modbus_client.read_input_registers(l_item._address, l_item._registers_count, unit=self._slave_address)
                 #self._logger.debug('-- register result:{}'.format(l_registers_array))
                 l_val = self.read_float_32(l_item._address, l_item._registers_count)
+				l_val = round(l_val, 2)
 
                 l_item._item = l_val
             except Exception as l_e:
