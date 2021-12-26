@@ -210,10 +210,10 @@ class EastronSdm120Ct(object):
 		returns a complete file path for csv exporting
 		creates directory if not exists
 		"""
-		l_res = os.path.join(self._csv_file_dir, str(datetime.today().year), '{:02d}'.format(datetime.today().month))
+		l_res = os.path.join(self._csv_file_dir, str(datetime.utcnow().year), '{:02d}'.format(datetime.utcnow().month))
 		if not os.path.exists(l_res):
 			os.makedirs(l_res)
-		l_fname = datetime.today().strftime('%Y%m%d') + '_' + self.get_mac() + '_' + self.__class__.__name__ + '.csv'
+		l_fname = datetime.utcnow().strftime('%Y%m%d') + '_' + self.__class__.__name__ + '.csv'
 		l_res = os.path.join(l_res, l_fname)
 		return l_res
 
